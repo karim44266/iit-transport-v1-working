@@ -1,4 +1,4 @@
-const GREEN='#0b6e4f',IIT=[34.81,10.74]; /* IIT position is approximate: paste exact coordinates here */
+const GREEN=getComputedStyle(document.documentElement).getPropertyValue('--acc').trim()||'#c8102e',IIT=[34.81,10.74]; /* IIT position is approximate: paste exact coordinates here */
 const MAPTILER_KEY=''; /* optional free key; empty = OpenStreetMap tiles (fine for testing, not for heavy traffic) */
 let M=null,RL=null;
 function initMap(id){M=L.map(id).setView(IIT,13);RL=null;
