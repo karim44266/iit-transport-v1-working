@@ -41,7 +41,7 @@ async function actions(r){const u=Auth.me(),b=$('#act'),full=!r.seats_available;
  if(q&&q.status==='accepted'){b.innerHTML='<div class="loc2 ok">✅ The driver accepted you. You have a seat.</div><a class="btn" href="#/chat/'+r.id+'">Open group chat</a><button class="btn no" id="ca">Cancel my seat</button>';cancel('Give up your seat?');return}
  if(q&&q.status==='pending'){L.marker([q.drop.lat,q.drop.lng]).addTo(M).bindTooltip('Your drop-off',{permanent:true});
   b.innerHTML='<div class="loc2">⏳ Request sent. Waiting for the driver to accept. '+badge(dropDist(r,q.drop))+'</div><button class="btn no" id="ca">Cancel request</button>';cancel('Cancel your request?');return}
- const wa=`<a class="btn alt" id="wa" target="_blank" rel="noopener" href="${waLink(r)}">WhatsApp the driver</a>`;
+ r.route.whatsapp_number=await Store.driverPhone(r.id);const wa=`<a class="btn alt" id="wa" target="_blank" rel="noopener" href="${waLink(r)}">WhatsApp the driver</a>`;
  if(full){b.innerHTML='<button class="btn" disabled>Ride is full</button>';return}
  b.innerHTML=(q?'<div class="loc2 ko">The driver declined your last request. You can try again with another drop-off.</div>':'')+'<div class="loc2">📍 <b>Tap the map</b> where you want to be dropped off. The driver will check it matches his route.</div><div id="mb" style="margin-top:8px"></div><button class="btn" id="ap" disabled>Send request</button>'+wa;
  let drop=null,mk=null;
@@ -52,7 +52,7 @@ async function actions(r){const u=Auth.me(),b=$('#act'),full=!r.seats_available;
 
 /* ---- Group chat (driver + everyone who applied) ---- */
 let CHAT=null;
-async function chatView(id){const u=need();if(!u)return;const r=await Store.rideAny(id),msgs=await Store.messages(id,u.id);
+async function chatView(id){const u=need();if(!u)return;const r=await Store.rideAny(id),msgs=await Store.messages(id,u.id);if(r&&msgs)r.route.whatsapp_number=await Store.driverPhone(id);
  if(!r||!msgs){app.innerHTML='<div class="card">You can only open the chat of a ride you applied to or drive. <a href="#/">Back</a></div>';return}
  app.innerHTML=`<a class="back" href="#/ride/${id}">← Ride</a><div class="card chat"><h2>${esc(r.route.name)}</h2><div class="muted" id="pp"></div><div id="msgs"></div>
  <div class="send"><input id="mt" placeholder="Write a message…" maxlength="500"><button class="btn" id="sd">Send</button></div>
@@ -134,7 +134,7 @@ async function accountView(){const u=need();if(!u)return;const [rides,routes,req
  <h3>My rides</h3>${rides.length?rides.map(r=>`<div class="card ride2"><div><b class="tm">${r.departure_time}</b> <span class="tag">${r.expired?'Expired':r.active?'Active':'Inactive'}</span>${pc[r.id]?` <span class="dot">${pc[r.id]} new request${pc[r.id]>1?'s':''}</span>`:''}<div>${esc(r.route.name)}</div><div class="muted">${dayLabel(r)} · ${r.seats_available}/${r.seats_total} seats</div></div><div><a class="btn alt" href="#/manage/${r.id}">Requests</a></div></div>`).join(''):'<div class="card muted">No rides yet. <a href="#/create">Offer your first ride</a>.</div>'}
  <h3>My saved roads</h3>${routes.length?routes.map(r=>`<div class="card ride2"><div><b>${esc(r.name)}</b> <span class="tag">${DIR[r.direction]}</span></div><div><a class="btn alt" href="#/create/${r.id}">Offer again</a><button class="btn no" data-rt="${r.id}">Remove</button></div></div>`).join(''):'<div class="card muted">Roads you draw are saved here, so you never draw them twice.</div>'}`;
  $('#pf').onchange=async e=>{if(e.target.files[0]){photo=await shrink(e.target.files[0]);$('.ph .av').outerHTML=avatar({name:u.name,photo},'av big')}};
- $('#sv').onclick=()=>{const n=$('#pn').value.trim(),p=$('#pp').value.trim();if(!n||p.replace(/\D/g,'').length<8)return alert('Enter a name and a valid phone number.');Auth.update(u.id,{name:n,phone:p,photo});nav();$('#ok').textContent='Saved ✔'};
+ $('#sv').onclick=async()=>{const n=$('#pn').value.trim(),p=$('#pp').value.trim();if(!n||p.replace(/\D/g,'').length<8)return alert('Enter a name and a valid phone number.');try{await Auth.update(u.id,{name:n,phone:p,photo});nav();$('#ok').textContent='Saved ✔'}catch(e){alert(e.message)}};
  $('#lo').onclick=()=>{Auth.logout();nav();location.hash='#/'};
  document.querySelectorAll('[data-rt]').forEach(b=>b.onclick=async()=>{if(confirm('Remove this saved road?')){await Store.delRoute(b.dataset.rt,u.id);accountView()}})}
 
@@ -160,6 +160,6 @@ function etaBlock(r){const b=$('#eta');
  b.innerHTML=i.near?`<div class="loc2 ok"><b>✅ This road passes ${fd(i.dist)} from you</b> (about ${Math.max(1,Math.round(i.dist/80))} min walk).<br>${to?'Be at the meeting point by':'The driver passes the point closest to you at about'} <b>${i.arrive}</b>.
   <div class="muted">He leaves at ${r.departure_time} and drives ${fd(i.along)} to reach it, about ${Math.round(i.mins)} min. This is an estimate with typical rush-hour speeds, not live traffic.</div></div>`
   :`<div class="loc2 ko"><b>❌ This road passes ${fd(i.dist)} from you.</b> It does not pass near your location.</div>`}
-addEventListener('hashchange',router);router();
+addEventListener('hashchange',router);Auth.init().catch(e=>console.error(e)).finally(router);
 if(navigator.permissions)navigator.permissions.query({name:'geolocation'}).then(p=>{if(p.state==='granted')locate().then(()=>{locBar();router()})}).catch(()=>{});
 locBar();
