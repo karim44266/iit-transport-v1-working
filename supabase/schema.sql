@@ -78,3 +78,7 @@ create or replace function my_profile() returns table(id uuid,name text,phone te
 revoke all on function apply_ride,decide_request,cancel_request,driver_phone,my_profile from public,anon;
 grant execute on function apply_ride,decide_request,cancel_request,driver_phone,my_profile,is_member to authenticated;
 grant execute on function ride_open to anon,authenticated;
+
+-- Instant chat: run ONCE in Supabase > SQL Editor (safe to run again).
+do $$ begin alter publication supabase_realtime add table messages; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table requests; exception when duplicate_object then null; end $$;

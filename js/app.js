@@ -24,9 +24,9 @@ async function home(){const all=await Store.rides();
 
 /* ---- Ride details ---- */
 async function rideView(id){const r=await Store.ride(id);
- if(!r){app.innerHTML='<div class="card">Ride not found or no longer active. <a href="#/">Back</a></div>';return}
+ if(!r){app.innerHTML='<div class="card">Ride not found or no longer active. <a href="#/rides">Back</a></div>';return}
  const full=!r.seats_available;
- app.innerHTML=`<a class="back" href="#/">← All rides</a><div class="card"><b class="tm">${r.departure_time}</b> <span class="tag">${DIR[r.route.direction]}</span>
+ app.innerHTML=`<a class="back" href="#/rides">← All rides</a><div class="card"><b class="tm">${r.departure_time}</b> <span class="tag">${DIR[r.route.direction]}</span>
  <h2>${esc(r.route.name)}</h2><div class="muted">${dayLabel(r)} · ${esc(r.route.driver_name)} · updated ${ago(r.updated_at)}</div>
  ${r.route.note?`<p>📝 ${esc(r.route.note)}</p>`:''}<div class="mapw"><div id="map"></div></div>
  <div id="eta" style="margin-top:12px"></div><div class="seatline">${full?'<span class="seats full">FULL</span>':`<b>${r.seats_available}</b> of ${r.seats_total} seats available`}</div>
@@ -51,9 +51,9 @@ async function actions(r){const u=Auth.me(),b=$('#act'),full=!r.seats_available;
  $('#wa').onclick=()=>Store.logContact(u.id,r.id)}
 
 /* ---- Group chat (driver + everyone who applied) ---- */
-let CHAT=null;
+let CHAT=null,CHCH=null;
 async function chatView(id){const u=need();if(!u)return;const r=await Store.rideAny(id),msgs=await Store.messages(id,u.id);if(r&&msgs)r.route.whatsapp_number=await Store.driverPhone(id);
- if(!r||!msgs){app.innerHTML='<div class="card">You can only open the chat of a ride you applied to or drive. <a href="#/">Back</a></div>';return}
+ if(!r||!msgs){app.innerHTML='<div class="card">You can only open the chat of a ride you applied to or drive. <a href="#/rides">Back</a></div>';return}
  app.innerHTML=`<a class="back" href="#/ride/${id}">← Ride</a><div class="card chat"><h2>${esc(r.route.name)}</h2><div class="muted" id="pp"></div><div id="msgs"></div>
  <div class="send"><input id="mt" placeholder="Write a message…" maxlength="500"><button class="btn" id="sd">Send</button></div>
  <a class="muted" target="_blank" rel="noopener" href="${waLink(r)}">Prefer WhatsApp? Contact the driver</a></div>`;
@@ -61,9 +61,10 @@ async function chatView(id){const u=need();if(!u)return;const r=await Store.ride
   $('#pp').textContent='Driver: '+r.route.driver_name+(ps.length?' · Passengers: '+ps.map(p=>p.name).join(', '):' · no passengers yet');
   const h=ms.map(m=>m.user_id===null?`<div class="sys">${esc(m.text)}</div>`:`<div class="msg ${m.user_id===u.id?'me':''}"><b>${m.user_id===u.id?'You':esc(m.name)}${m.user_id===r.owner_id?' 🚗':''}</b>${esc(m.text)}<i>${hm(new Date(m.at).getHours()*60+new Date(m.at).getMinutes())}</i></div>`).join('');
   if(h!==last){last=h;const b=$('#msgs');b.innerHTML=h||'<div class="sys">No messages yet. Say hi 👋</div>';b.scrollTop=b.scrollHeight}};
- const send=async()=>{const t=$('#mt').value.trim();if(!t)return;$('#mt').value='';await Store.send(id,u.id,u.name,t);paint()};
+ const send=async()=>{const t=$('#mt').value.trim();if(!t)return;$('#mt').value='';try{await Store.send(id,u.id,u.name,t);paint()}catch(e){$('#mt').value=t;alert('Message not sent: '+e.message)}};
  $('#sd').onclick=send;$('#mt').onkeydown=e=>{if(e.key==='Enter')send()};
- await paint();CHAT=setInterval(paint,2500)}
+ await paint();CHAT=setInterval(paint,8000); /* backup only: messages arrive instantly through realtime */
+ CHCH=sb.channel('chat-'+id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'ride_id=eq.'+id},paint).subscribe()}
 
 
 /* ---- Auth pages ---- */
@@ -71,16 +72,16 @@ const need=()=>{const u=Auth.me();if(!u)location.hash='#/login';return u};
 const authCard=(t,sub,body)=>`<div class="authwrap"><div class="card auth"><h2>${t}</h2><p class="muted">${sub}</p>${body}<div id="err" class="err" hidden></div></div></div>`;
 const fail=e=>{const b=$('#err');b.hidden=false;b.textContent=e.message||'Something went wrong'};
 function loginView(){app.innerHTML=authCard('Welcome back','Log in to offer rides and contact drivers.',`<label>Email</label><input id="em" type="email" autocomplete="email"><label>Password</label><input id="pw" type="password" autocomplete="current-password"><button class="btn full" id="go">Log in</button><p class="muted">New here? <a href="#/register">Create an account</a></p>`);
- $('#go').onclick=async()=>{try{await Auth.login($('#em').value,$('#pw').value);location.hash='#/';nav()}catch(e){fail(e)}}}
-function registerView(){app.innerHTML=authCard('Create your account','Takes 30 seconds. Your phone is only used to build the WhatsApp link.',`<label>Full name</label><input id="nm" autocomplete="name"><label>Email</label><input id="em" type="email" autocomplete="email"><label>WhatsApp number</label><input id="ph" type="tel" placeholder="e.g. 22 123 456"><label>Password (6+ characters)</label><input id="pw" type="password" autocomplete="new-password"><button class="btn full" id="go">Register</button><p class="muted">Already have an account? <a href="#/login">Log in</a></p>`);
+ $('#go').onclick=async()=>{try{await Auth.login($('#em').value,$('#pw').value);location.hash='#/rides';nav()}catch(e){fail(e)}}}
+function registerView(){app.innerHTML=authCard('Create your account','Takes 30 seconds. Your phone is only used to build the WhatsApp link.',`<label>Full name</label><input id="nm" autocomplete="name"><label>Email</label><input id="em" type="email" autocomplete="email"><label>WhatsApp number</label><input id="ph" type="tel" placeholder="e.g. 22 123 456"><label>Password (6+ characters)</label><input id="pw" type="password" autocomplete="new-password"><button class="btn full" id="go">Register</button><a class="btn alt full" href="#/login">I already have an account · Log in</a>`);
  $('#go').onclick=async()=>{const n=$('#nm').value.trim(),p=$('#ph').value.trim(),w=$('#pw').value;
   if(!n||$('#em').value.indexOf('@')<1||p.replace(/\D/g,'').length<8||w.length<6)return fail(Error('Fill every field: valid email, phone (8+ digits), password (6+ characters).'));
-  try{await Auth.register({name:n,email:$('#em').value,phone:p,password:w});location.hash='#/';nav()}catch(e){fail(e)}}}
-function nav(){const u=Auth.me();$('#nav').innerHTML=u?`<a href="#/">Rides</a><a href="#/create" class="cta">Offer a ride</a><a href="#/me">👤 ${esc(u.name.split(' ')[0])}</a>`:`<a href="#/">Rides</a><a href="#/login">Log in</a><a href="#/register" class="cta">Register</a>`}
+  try{await Auth.register({name:n,email:$('#em').value,phone:p,password:w});location.hash='#/rides';nav()}catch(e){fail(e)}}}
+function nav(){const u=Auth.me();$('#nav').innerHTML=u?`<a href="#/rides">Rides</a><a href="#/create" class="cta">Offer a ride</a><a href="#/me">👤 ${esc(u.name.split(' ')[0])} <span class="dot" id="nb" hidden></span></a>`:`<a href="#/rides">Rides</a><a href="#/login">Log in</a><a href="#/register" class="cta">Register</a>`;Notify.sync()}
 
 /* ---- Create ride: same road as before, or draw a new one ---- */
 async function createView(pre){const u=need();if(!u)return;const mine=await Store.myRoutes(u.id);let geo=null,reuse=mine.find(m=>m.id===pre)||null;
- app.innerHTML=`<a class="back" href="#/">← Back</a><div class="card"><h2>Offer a ride</h2>
+ app.innerHTML=`<a class="back" href="#/rides">← Back</a><div class="card"><h2>Offer a ride</h2>
  ${mine.length?`<label>Which road?</label><select id="sr"><option value="">New road (draw it)</option>${mine.map(m=>`<option value="${m.id}" ${reuse&&reuse.id===m.id?'selected':''}>Same as before: ${esc(m.name)} (${DIR[m.direction]})</option>`).join('')}</select>`:''}
  <div id="newr"><div class="row"><div><label>Route name</label><input id="rn" placeholder="e.g. Gremda → IIT"></div><div><label>Direction</label><select id="dd"><option value="to_iit">Home → IIT</option><option value="from_iit">IIT → Home</option></select></div></div>
  <label>Note (optional)</label><input id="nt" placeholder="e.g. meet in front of Block B"></div>
@@ -129,18 +130,19 @@ const RS={pending:'⏳ Pending',accepted:'✅ Accepted',declined:'❌ Declined'}
 async function accountView(){const u=need();if(!u)return;const [rides,routes,reqs,pc]=await Promise.all([Store.myRides(u.id),Store.myRoutes(u.id),Store.myRequests(u.id),Store.pending(u.id)]);let photo=u.photo;
  app.innerHTML=`<div class="card prof"><label class="ph" title="Change photo">${avatar({name:u.name,photo},'av big')}<input id="pf" type="file" accept="image/*" hidden><span>Change photo</span></label>
  <div class="pfields"><label>Name</label><input id="pn" value="${esc(u.name)}"><label>WhatsApp number</label><input id="pp" value="${esc(u.phone)}"><div class="muted">${esc(u.email)}</div>
- <button class="btn" id="sv">Save profile</button><button class="btn alt" id="lo">Log out</button> <span id="ok" class="muted"></span></div></div>
- <h3>My requests</h3>${reqs.length?reqs.map(r=>`<div class="card ride2"><div><b class="tm">${r.departure_time}</b> <span class="tag">${RS[r.request.status]}</span><div>${esc(r.route.name)} · ${dayLabel(r)}</div><div class="muted">Driver: ${esc(r.route.driver_name)}</div></div><div>${r.request.status==='accepted'?`<a class="btn alt" href="#/chat/${r.id}">Chat</a>`:''}<a class="btn alt" href="#/ride/${r.id}">View</a></div></div>`).join(''):'<div class="card muted">No requests yet. <a href="#/">Browse rides</a>.</div>'}
+ <button class="btn" id="sv">Save profile</button>${window.Notification&&Notification.permission==='default'?'<button class="btn alt" id="nt">🔔 Enable alerts</button>':''}<button class="btn alt" id="lo">Log out</button> <span id="ok" class="muted"></span></div></div>
+ <h3>My requests</h3>${reqs.length?reqs.map(r=>`<div class="card ride2"><div><b class="tm">${r.departure_time}</b> <span class="tag">${RS[r.request.status]}</span><div>${esc(r.route.name)} · ${dayLabel(r)}</div><div class="muted">Driver: ${esc(r.route.driver_name)}</div></div><div>${r.request.status==='accepted'?`<a class="btn alt" href="#/chat/${r.id}">Chat</a>`:''}<a class="btn alt" href="#/ride/${r.id}">View</a></div></div>`).join(''):'<div class="card muted">No requests yet. <a href="#/rides">Browse rides</a>.</div>'}
  <h3>My rides</h3>${rides.length?rides.map(r=>`<div class="card ride2"><div><b class="tm">${r.departure_time}</b> <span class="tag">${r.expired?'Expired':r.active?'Active':'Inactive'}</span>${pc[r.id]?` <span class="dot">${pc[r.id]} new request${pc[r.id]>1?'s':''}</span>`:''}<div>${esc(r.route.name)}</div><div class="muted">${dayLabel(r)} · ${r.seats_available}/${r.seats_total} seats</div></div><div><a class="btn alt" href="#/manage/${r.id}">Requests</a></div></div>`).join(''):'<div class="card muted">No rides yet. <a href="#/create">Offer your first ride</a>.</div>'}
  <h3>My saved roads</h3>${routes.length?routes.map(r=>`<div class="card ride2"><div><b>${esc(r.name)}</b> <span class="tag">${DIR[r.direction]}</span></div><div><a class="btn alt" href="#/create/${r.id}">Offer again</a><button class="btn no" data-rt="${r.id}">Remove</button></div></div>`).join(''):'<div class="card muted">Roads you draw are saved here, so you never draw them twice.</div>'}`;
  $('#pf').onchange=async e=>{if(e.target.files[0]){photo=await shrink(e.target.files[0]);$('.ph .av').outerHTML=avatar({name:u.name,photo},'av big')}};
  $('#sv').onclick=async()=>{const n=$('#pn').value.trim(),p=$('#pp').value.trim();if(!n||p.replace(/\D/g,'').length<8)return alert('Enter a name and a valid phone number.');try{await Auth.update(u.id,{name:n,phone:p,photo});nav();$('#ok').textContent='Saved ✔'}catch(e){alert(e.message)}};
- $('#lo').onclick=()=>{Auth.logout();nav();location.hash='#/'};
+ if($('#nt'))$('#nt').onclick=()=>{Notify.enable();$('#nt').remove()};
+ $('#lo').onclick=()=>{Notify.stop();Auth.logout();nav();location.hash='#/'};
  document.querySelectorAll('[data-rt]').forEach(b=>b.onclick=async()=>{if(confirm('Remove this saved road?')){await Store.delRoute(b.dataset.rt,u.id);accountView()}})}
 
 /* ---- Router ---- */
-function router(){if(M){M.remove();M=null}if(CHAT){clearInterval(CHAT);CHAT=null}const [,p,arg]=(location.hash.slice(1)||'/').split('/');scrollTo(0,0);
- ({ride:rideView,create:createView,manage:manageView,login:loginView,chat:chatView,register:registerView,me:accountView}[p]||home)(arg);nav()}
+function router(){if(M){M.remove();M=null}if(CHAT){clearInterval(CHAT);CHAT=null}if(CHCH){sb.removeChannel(CHCH);CHCH=null}const [,p,arg]=(location.hash.slice(1)||'/').split('/');scrollTo(0,0);
+ (!p&&!Auth.me()?registerView:{rides:home,ride:rideView,create:createView,manage:manageView,login:loginView,chat:chatView,register:registerView,me:accountView}[p]||home)(arg);nav();$('#locbar').style.display=(p==='rides'||p==='ride'||(!p&&Auth.me()))?'':'none'}
 /* ---- Your position (kept in memory only, never stored) ---- */
 let ME=null;
 const locate=()=>new Promise((res,rej)=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>{ME={lat:p.coords.latitude,lng:p.coords.longitude};res(ME)},rej,{enableHighAccuracy:true,timeout:10000}):rej());
