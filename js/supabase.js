@@ -42,4 +42,10 @@ const Store={
  async passengers(id){return must(await sb.from('requests').select('*,user:profiles(name,photo)').eq('ride_id',id).eq('status','accepted')).map(q=>({...q,name:q.user.name}))},
  async isMember(id){return !!must(await sb.rpc('is_member',{p_ride:id}))},
  async messages(id){if(!(await this.isMember(id)))return null;return must(await sb.from('messages').select('*,p:profiles(name)').eq('ride_id',id).order('created_at')).map(m=>({id:m.id,ride_id:m.ride_id,user_id:m.user_id,name:(m.p&&m.p.name)||'',text:m.text,at:m.created_at}))},
- async send(id,u,name,text){must(await sb.from('messages').insert({ride_id:id,user_id:u,text:text.slice(0,500)}))}};
+ async send(id,u,name,text){must(await sb.from('messages').insert({ride_id:id,user_id:u,text:text.slice(0,500)}))},
+ async myChats(u){const[mine,asRider]=await Promise.all([this.myRides(u),this.myRequests(u)]);
+  const has=new Set(must(await sb.from('requests').select('ride_id').eq('status','accepted')).map(q=>q.ride_id));
+  const rides=[...mine.filter(r=>has.has(r.id)),...asRider.filter(r=>r.request.status==='accepted')];if(!rides.length)return[];
+  const ms=must(await sb.from('messages').select('ride_id,text,created_at,user_id,p:profiles(name)').in('ride_id',rides.map(r=>r.id)).order('created_at',{ascending:false}).limit(300)),last={};
+  ms.forEach(m=>{if(m.user_id&&!last[m.ride_id])last[m.ride_id]={text:m.text,name:m.user_id===u?'You':(m.p&&m.p.name)||'',at:m.created_at}});
+  return rides.map(r=>({...r,last:last[r.id]||null})).sort((a,b)=>((b.last&&b.last.at)||b.created_at||'').localeCompare((a.last&&a.last.at)||a.created_at||''))}};

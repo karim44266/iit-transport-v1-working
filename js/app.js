@@ -86,7 +86,25 @@ function registerView(){app.innerHTML=authCard('Create your account','Takes 30 s
  $('#go').onclick=async()=>{const n=$('#nm').value.trim(),p=$('#ph').value.trim(),w=$('#pw').value;
   if(!n||$('#em').value.indexOf('@')<1||p.replace(/\D/g,'').length<8||w.length<6)return fail(Error('Fill every field: valid email, phone (8+ digits), password (6+ characters).'));
   try{await Auth.register({name:n,email:$('#em').value,phone:p,password:w});location.hash='#/rides';nav()}catch(e){fail(e)}}}
-function nav(){const u=Auth.me();$('#nav').innerHTML=u?`<a href="#/rides">Rides</a><a href="#/create" class="cta">Offer a ride</a><a href="#/me">👤 ${esc(u.name.split(' ')[0])} <span class="dot" id="nb" hidden></span></a>`:`<a href="#/rides">Rides</a><a href="#/login">Log in</a><a href="#/register" class="cta">Register</a>`;Notify.sync()}
+const TI={"rides": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 17h16M5 17l1.5-6h11L19 17M7 17v2M17 17v2M7.5 11l1-3h7l1 3\"/></svg>", "chats": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 5h16v11H9l-5 4z\"/></svg>", "plus": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg>", "me": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M4 21c0-4 4-6 8-6s8 2 8 6\"/></svg>", "in": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 4h5v16h-5M10 8l-4 4 4 4M6 12h10\"/></svg>", "reg": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"10\" cy=\"8\" r=\"4\"/><path d=\"M2 21c0-4 3-6 8-6M18 9v6M15 12h6\"/></svg>"};
+function tabs(){const u=Auth.me(),p=(location.hash.slice(1)||'/').split('/')[1]||'',t=$('#tabbar'),on=(...k)=>k.includes(p)?' class="on"':'';
+ if(!u&&['','login','register'].includes(p)){t.hidden=true;return}t.hidden=false;
+ t.innerHTML=u?`<a href="#/rides"${on('rides','ride')}>${TI.rides}Rides</a><a href="#/chats"${on('chats','chat')}>${TI.chats}Chats</a><a href="#/create" class="offer${on('create')?' on':''}"><span class="plus">${TI.plus}</span>Offer</a><a href="#/me"${on('me','manage')}>${TI.me}<span class="dot nb" hidden></span>Account</a>`
+  :`<a href="#/rides"${on('rides','ride')}>${TI.rides}Rides</a><a href="#/login">${TI.in}Log in</a><a href="#/register">${TI.reg}Register</a>`}
+function nav(){const u=Auth.me();$('#nav').innerHTML=u?`<a href="#/rides">Rides</a><a href="#/chats">Chats</a><a href="#/create" class="cta">Offer a ride</a><a href="#/me">👤 ${esc(u.name.split(' ')[0])} <span class="dot nb" hidden></span></a>`:`<a href="#/rides">Rides</a><a href="#/login">Log in</a><a href="#/register" class="cta">Register</a>`;tabs();installBar();Notify.sync()}
+
+/* ---- Install as an app (Android prompt, iPhone instructions) ---- */
+let DEFERRED=null;addEventListener('beforeinstallprompt',e=>{e.preventDefault();DEFERRED=e;installBar()});
+const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+function installBar(){const b=$('#installbar'),p=(location.hash.slice(1)||'/').split('/')[1]||'',ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+ if(!b)return;if(standalone()||localStorage.getItem('iit-install-no')||!Auth.me()||!['rides'].includes(p)||!(DEFERRED||ios)){b.hidden=true;return}
+ b.hidden=false;b.innerHTML=(DEFERRED?'📲 Install IIT Transport on your phone to get alerts. <button class="btn alt" id="ib">Install</button>':'📲 To get alerts on iPhone: tap <b>Share</b> then <b>Add to Home Screen</b>.')+' <button class="btn alt" id="ix">✕</button>';
+ if($('#ib'))$('#ib').onclick=async()=>{DEFERRED.prompt();await DEFERRED.userChoice;DEFERRED=null;installBar()};
+ $('#ix').onclick=()=>{localStorage.setItem('iit-install-no','1');b.hidden=true}}
+
+/* ---- Chats list ---- */
+async function chatsView(){const u=need();if(!u)return;const cs=await Store.myChats(u.id);
+ app.innerHTML='<h2>Chats</h2>'+(cs.length?cs.map(c=>`<a class="card chatrow${c.expired?' old':''}" href="#/chat/${c.id}"><div class="cr1"><b>${esc(c.route.name)}</b><span class="tag ${DC(c.route.direction)}">${DIR[c.route.direction]}</span></div><div class="muted">${dayLabel(c)} · ${c.departure_time} · ${c.owner_id===u.id?'You drive':'Driver: '+esc(c.route.driver_name)}</div><div class="last">${c.last?esc(c.last.name+': '+c.last.text):'No messages yet. Say hi 👋'}</div></a>`).join(''):'<div class="card muted">No chats yet. When a driver accepts your request, or you accept a rider, the group chat of that ride appears here.</div>')}
 
 /* ---- Create ride: same road as before, or draw a new one ---- */
 async function createView(pre){const u=need();if(!u)return;const mine=await Store.myRoutes(u.id);let geo=null,reuse=mine.find(m=>m.id===pre)||null;
@@ -151,7 +169,7 @@ async function accountView(){const u=need();if(!u)return;const [rides,routes,req
 
 /* ---- Router ---- */
 function router(){if(M){M.remove();M=null}if(CHAT){clearInterval(CHAT);CHAT=null}if(CHCH){sb.removeChannel(CHCH);CHCH=null}const [,p,arg]=(location.hash.slice(1)||'/').split('/');scrollTo(0,0);
- (!p&&!Auth.me()?registerView:{rides:home,ride:rideView,create:createView,manage:manageView,login:loginView,chat:chatView,register:registerView,me:accountView}[p]||home)(arg);nav();$('#locbar').style.display=(p==='rides'||p==='ride'||(!p&&Auth.me()))?'':'none'}
+ (!p&&!Auth.me()?registerView:{rides:home,ride:rideView,create:createView,manage:manageView,login:loginView,chat:chatView,chats:chatsView,register:registerView,me:accountView}[p]||home)(arg);nav();$('#locbar').style.display=(p==='rides'||p==='ride'||(!p&&Auth.me()))?'':'none'}
 /* ---- Your position (kept in memory only, never stored) ---- */
 let ME=null;
 const locate=()=>new Promise((res,rej)=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>{ME={lat:p.coords.latitude,lng:p.coords.longitude};res(ME)},rej,{enableHighAccuracy:true,timeout:10000}):rej());

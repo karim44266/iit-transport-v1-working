@@ -3,8 +3,7 @@ const Notify=(()=>{let ch=null,uid=null,box=null;
  const toast=(t,href)=>{if(!box){box=document.createElement('div');box.id='toasts';document.body.appendChild(box)}
   const d=document.createElement('div');d.className='toast';d.textContent=t;d.onclick=()=>{location.hash=href;d.remove()};box.appendChild(d);setTimeout(()=>d.remove(),7000);
   if(document.hidden&&window.Notification&&Notification.permission==='granted')new Notification('IIT Transport',{body:t})};
- const badge=async()=>{const u=Auth.me(),b=document.getElementById('nb');if(!u||!b)return;
-  try{const p=await Store.pending(u.id),n=Object.values(p).reduce((a,c)=>a+c,0);b.textContent=n;b.hidden=!n;document.title=(n?'('+n+') ':'')+'IIT Transport'}catch(e){}};
+ const badge=async()=>{const u=Auth.me();if(!u)return;try{const p=await Store.pending(u.id),c=Object.values(p).reduce((a,x)=>a+x,0);document.querySelectorAll('.nb').forEach(b=>{b.textContent=c;b.hidden=!c});document.title=(c?'('+c+') ':'')+'IIT Transport'}catch(e){}};
  const who=async id=>{try{const{data}=await sb.from('profiles').select('name').eq('id',id).maybeSingle();return data?data.name:'Someone'}catch(e){return'Someone'}};
  const start=u=>{uid=u.id;ch=sb.channel('notif-'+u.id)
   .on('postgres_changes',{event:'*',schema:'public',table:'requests'},async p=>{const n=p.new||{};
