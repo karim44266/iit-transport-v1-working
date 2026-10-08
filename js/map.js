@@ -1,10 +1,10 @@
-const GREEN=getComputedStyle(document.documentElement).getPropertyValue('--acc').trim()||'#c8102e',IIT=[34.81,10.74]; /* IIT position is approximate: paste exact coordinates here */
+const GREEN=getComputedStyle(document.documentElement).getPropertyValue('--acc').trim()||'#c8102e',IIT=[34.8410896,10.7551184]; /* exact IIT pin from Google Maps */
 const MAPTILER_KEY=''; /* optional free key; empty = OpenStreetMap tiles (fine for testing, not for heavy traffic) */
 let M=null,RL=null;
 function initMap(id){document.body.style.overflow='';M=L.map(id).setView(IIT,13);RL=null;
  const url=MAPTILER_KEY?`https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`:'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
  L.tileLayer(url,{maxZoom:19,tileSize:MAPTILER_KEY?512:256,zoomOffset:MAPTILER_KEY?-1:0,attribution:MAPTILER_KEY?'© MapTiler © OpenStreetMap contributors':'© OpenStreetMap contributors'}).addTo(M);
- L.marker(IIT).addTo(M).bindPopup('IIT');
+ L.marker(IIT,{icon:L.divIcon({className:'',html:'<div class="iit-pin">IIT</div>',iconSize:[38,38],iconAnchor:[19,19]}),zIndexOffset:500}).addTo(M).bindPopup('<b>IIT</b><br>Institut International de Technologie');
  /* Full screen: big map for long routes. Works on every map; drawing buttons follow the page's own buttons. */
  const w=document.getElementById(id).parentElement;
  if(w&&w.classList.contains('mapw')){

@@ -32,8 +32,8 @@ const Store={
  async delRoute(id,u){must(await sb.from('routes').delete().eq('id',id).eq('owner_id',u))},
  async logContact(){},
  async driverPhone(id){return must(await sb.rpc('driver_phone',{p_ride:id}))||''},
- async apply(id,u,name,drop){must(await sb.rpc('apply_ride',{p_ride:id,p_lat:drop.lat,p_lng:drop.lng}))},
- async decide(qid,owner,accept){must(await sb.rpc('decide_request',{p_req:qid,p_accept:accept}))},
+ async apply(id,u,name,drop){must(await sb.rpc('apply_ride',{p_ride:id,p_lat:drop.lat,p_lng:drop.lng}));Push.send({type:'request',ride_id:id})},
+ async decide(qid,owner,accept){must(await sb.rpc('decide_request',{p_req:qid,p_accept:accept}));Push.send({type:'decision',request_id:qid})},
  async cancelRequest(id){must(await sb.rpc('cancel_request',{p_ride:id}))},
  async requests(id){return must(await sb.from('requests').select('*,user:profiles(name,photo)').eq('ride_id',id).order('created_at')).map(q=>({...q,name:q.user.name,drop:{lat:q.drop_lat,lng:q.drop_lng}}))},
  async myRequest(id,u){const q=must(await sb.from('requests').select('*').eq('ride_id',id).eq('user_id',u).maybeSingle());return q?{...q,drop:{lat:q.drop_lat,lng:q.drop_lng}}:null},
@@ -42,7 +42,7 @@ const Store={
  async passengers(id){return must(await sb.from('requests').select('*,user:profiles(name,photo)').eq('ride_id',id).eq('status','accepted')).map(q=>({...q,name:q.user.name}))},
  async isMember(id){return !!must(await sb.rpc('is_member',{p_ride:id}))},
  async messages(id){if(!(await this.isMember(id)))return null;return must(await sb.from('messages').select('*,p:profiles(name)').eq('ride_id',id).order('created_at')).map(m=>({id:m.id,ride_id:m.ride_id,user_id:m.user_id,name:(m.p&&m.p.name)||'',text:m.text,at:m.created_at}))},
- async send(id,u,name,text){must(await sb.from('messages').insert({ride_id:id,user_id:u,text:text.slice(0,500)}))},
+ async send(id,u,name,text){must(await sb.from('messages').insert({ride_id:id,user_id:u,text:text.slice(0,500)}));Push.send({type:'message',ride_id:id})},
  async myChats(u){const[mine,asRider]=await Promise.all([this.myRides(u),this.myRequests(u)]);
   const has=new Set(must(await sb.from('requests').select('ride_id').eq('status','accepted')).map(q=>q.ride_id));
   const rides=[...mine.filter(r=>has.has(r.id)),...asRider.filter(r=>r.request.status==='accepted')];if(!rides.length)return[];
