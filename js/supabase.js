@@ -35,7 +35,9 @@ const Store={
  async apply(id,u,name,drop){must(await sb.rpc('apply_ride',{p_ride:id,p_lat:drop.lat,p_lng:drop.lng}));Push.send({type:'request',ride_id:id})},
  async decide(qid,owner,accept){must(await sb.rpc('decide_request',{p_req:qid,p_accept:accept}));Push.send({type:'decision',request_id:qid})},
  async cancelRequest(id){must(await sb.rpc('cancel_request',{p_ride:id}))},
- async requests(id){return must(await sb.from('requests').select('*,user:profiles(name,photo)').eq('ride_id',id).order('created_at')).map(q=>({...q,name:q.user.name,drop:{lat:q.drop_lat,lng:q.drop_lng}}))},
+ async requests(id){const rows=must(await sb.from('requests').select('*,user:profiles(name,photo)').eq('ride_id',id).order('created_at')).map(q=>({...q,name:q.user.name,drop:{lat:q.drop_lat,lng:q.drop_lng},phone:''}));
+  try{const m={};(must(await sb.rpc('ride_rider_phones',{p_ride:id}))||[]).forEach(p=>m[p.user_id]=p.phone||'');rows.forEach(q=>q.phone=m[q.user_id]||'')}catch(e){}return rows},
+ async cleanup(){try{await sb.rpc('cleanup_expired')}catch(e){}},
  async myRequest(id,u){const q=must(await sb.from('requests').select('*').eq('ride_id',id).eq('user_id',u).maybeSingle());return q?{...q,drop:{lat:q.drop_lat,lng:q.drop_lng}}:null},
  async myRequests(u){return must(await sb.from('requests').select('*,ride:rides('+RIDE+')').eq('user_id',u).order('created_at',{ascending:false})).filter(q=>q.ride).map(q=>({...shape(q.ride),request:q}))},
  async pending(u){const o={};must(await sb.from('requests').select('ride_id,ride:rides!inner(owner_id,date,departure_time)').eq('status','pending').eq('ride.owner_id',u)).forEach(q=>{if(!expired(q.ride))o[q.ride_id]=(o[q.ride_id]||0)+1});return o},

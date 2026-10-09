@@ -8,6 +8,8 @@ const dmyHTML=(id,iso)=>{const[y,m,d]=iso.split('-').map(Number),Y=new Date().ge
 const hmHTML=id=>`<div class="dmy"><select id="${id}h" aria-label="Hour"><option value="">HH</option>${Array.from({length:24},(_,i)=>`<option>${p2(i)}</option>`).join('')}</select><span>:</span><select id="${id}i" aria-label="Minutes"><option value="">MM</option>${Array.from({length:12},(_,i)=>`<option>${p2(i*5)}</option>`).join('')}</select></div>`;
 const getDate=id=>{const d=+$('#'+id+'d').value,m=+$('#'+id+'m').value,y=+$('#'+id+'y').value,t=new Date(y,m-1,d);return t.getFullYear()===y&&t.getMonth()===m-1&&t.getDate()===d?`${y}-${p2(m)}-${p2(d)}`:''};
 const getTime=id=>{const h=$('#'+id+'h').value,i=$('#'+id+'i').value;return h===''||i===''?'':h+':'+i};
+const telHref=n=>{let d=String(n).replace(/\D/g,'');if(d.length===8)d='216'+d;return'tel:+'+d};
+const phoneLine=q=>q.phone?`<div class="ph2">📞 <a href="${telHref(q.phone)}">${esc(q.phone)}</a></div>`:'';
 const fmtDMY=iso=>iso.split('-').reverse().join('/');
 const todayStr=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 const dayLabel=r=>{const t=todayStr(),tm=new Date(Date.now()+864e5-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);return r.date===t?'Today':r.date===tm?'Tomorrow':new Date(r.date+'T12:00').toLocaleDateString('en-GB',{weekday:'short'})+' '+fmtDMY(r.date)};
@@ -139,8 +141,8 @@ async function manageView(id){const u=need();if(!u)return;const r=await Store.my
  app.innerHTML=`<a class="back" href="#/me">← My account</a><div class="card"><h2>${esc(r.route.name)}</h2>
  <div><b class="tm">${r.departure_time}</b> <span class="tag">${r.expired?'Expired':r.active?'Active':'Inactive'}</span> <span class="muted">${dayLabel(r)} · <b>${r.seats_available}</b> of ${r.seats_total} seats left</span></div>
  <div class="mapw"><div id="map"></div></div>
- <h3>Requests to review (${pend.length})</h3><div>${pend.map(q=>`<div class="req" data-q="${q.id}">${avatar(q.user)}<div class="rb"><b>${esc(q.user.name)}</b><div>${badge(dropDist(r,q.drop))}</div><button class="btn alt show">Show drop-off</button></div><div><button class="btn ok acc">Accept</button><button class="btn no dec">Decline</button></div></div>`).join('')||'<div class="muted">No pending requests.</div>'}</div>
- <h3>Accepted riders</h3><div>${acc.map(q=>`<div class="req">${avatar(q.user)}<div class="rb"><b>${esc(q.user.name)}</b><div>${badge(dropDist(r,q.drop))}</div></div></div>`).join('')||'<div class="muted">Nobody yet.</div>'}</div>
+ <h3>Requests to review (${pend.length})</h3><div>${pend.map(q=>`<div class="req" data-q="${q.id}">${avatar(q.user)}<div class="rb"><b>${esc(q.user.name)}</b>${phoneLine(q)}<div>${badge(dropDist(r,q.drop))}</div><button class="btn alt show">Show drop-off</button></div><div><button class="btn ok acc">Accept</button><button class="btn no dec">Decline</button></div></div>`).join('')||'<div class="muted">No pending requests.</div>'}</div>
+ <h3>Accepted riders</h3><div>${acc.map(q=>`<div class="req">${avatar(q.user)}<div class="rb"><b>${esc(q.user.name)}</b>${phoneLine(q)}<div>${badge(dropDist(r,q.drop))}</div></div></div>`).join('')||'<div class="muted">Nobody yet.</div>'}</div>
  <a class="btn" href="#/chat/${r.id}">Open group chat</a><button class="btn alt" id="ac">${r.active?'Deactivate':'Reactivate'}</button><button class="btn no" id="dl">Delete ride</button></div>`;
  initMap('map');showRoute(r.route.route_geojson);const mk={};
  qs.filter(q=>q.status!=='declined').forEach(q=>{mk[q.id]=L.circleMarker([q.drop.lat,q.drop.lng],{radius:8,color:q.status==='accepted'?'#1a8f4a':'#e08a00',fillOpacity:.9}).addTo(M).bindTooltip(q.user.name+' (drop-off)',{permanent:true,direction:'top'})});
@@ -154,7 +156,7 @@ async function manageView(id){const u=need();if(!u)return;const r=await Store.my
 /* ---- My account: profile (with photo) + history ---- */
 const shrink=f=>new Promise(res=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(im.width,im.height);c.width=c.height=160;c.getContext('2d').drawImage(im,(im.width-s)/2,(im.height-s)/2,s,s,0,0,160,160);res(c.toDataURL('image/jpeg',.8))};im.src=URL.createObjectURL(f)});
 const RS={pending:'⏳ Pending',accepted:'✅ Accepted',declined:'❌ Declined'};
-async function accountView(){const u=need();if(!u)return;const [rides,routes,reqs,pc]=await Promise.all([Store.myRides(u.id),Store.myRoutes(u.id),Store.myRequests(u.id),Store.pending(u.id)]);let photo=u.photo;
+async function accountView(){const u=need();if(!u)return;if(Store.cleanup)Store.cleanup();const [rides0,routes,reqs0,pc]=await Promise.all([Store.myRides(u.id),Store.myRoutes(u.id),Store.myRequests(u.id),Store.pending(u.id)]);const rides=rides0.filter(r=>!r.expired),reqs=reqs0.filter(r=>!r.expired);let photo=u.photo;
  app.innerHTML=`<div class="card prof"><label class="ph" title="Change photo">${avatar({name:u.name,photo},'av big')}<input id="pf" type="file" accept="image/*" hidden><span>Change photo</span></label>
  <div class="pfields"><label>Name</label><input id="pn" value="${esc(u.name)}"><label>WhatsApp number</label><input id="pp" value="${esc(u.phone)}"><div class="muted">${esc(u.email)}</div>
  <button class="btn" id="sv">Save profile</button>${window.Notification&&Notification.permission==='granted'?'<span class="muted">🔔 Alerts on</span> ':'<button class="btn alt" id="nt">🔔 Enable alerts</button>'}<button class="btn alt" id="lo">Log out</button> <span id="ok" class="muted"></span></div></div>
